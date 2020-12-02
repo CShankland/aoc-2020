@@ -28,12 +28,17 @@ fn main() {
     let mut outer = expense_entries.iter();
     while let Some(a) = outer.next()
     {
-        let inner = outer.clone();
-        for b in inner
+        let mut middle = outer.clone();
+        while let Some(b) = middle.next()
         {
-            if a + b == 2020
+            let inner = middle.clone();
+            for c in inner
             {
-                println!("{}", a * b);
+                if a + b + c == 2020
+                {
+                    println!("{}", a * b * c);
+                    return;
+                }
             }
         }
     }
