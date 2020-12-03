@@ -35,8 +35,8 @@ struct PasswordEntry
 {
     password: String,
     required: char,
-    min_count: usize,
-    max_count: usize
+    first_index: usize,
+    second_index: usize
 }
 
 fn main() {
@@ -65,22 +65,22 @@ fn parse_password_entry(input: &String) -> Result<PasswordEntry, AocError>
     }
 
     let parse_result = RE.captures(input).unwrap();
-    let min_count = parse_result["min"].to_string().parse::<usize>()?;
-    let max_count = parse_result["max"].to_string().parse::<usize>()?;
+    let first_index = parse_result["min"].to_string().parse::<usize>()?;
+    let second_index = parse_result["max"].to_string().parse::<usize>()?;
 
     Ok(PasswordEntry
     {
         password: parse_result["pwd"].to_string(),
         required: parse_result["req"].to_string().chars().nth(0).unwrap(),
-        min_count,
-        max_count,
+        first_index,
+        second_index,
     })
 }
 
 fn verify_password(password_data: &PasswordEntry) -> bool
 {
-    let count = password_data.password.chars()
-        .filter(|c| c == &password_data.required)
-        .count();
-    return count >= password_data.min_count && count <= password_data.max_count;
+    let has_first = password_data.password.chars().nth(password_data.first_index - 1).map_or(false, |c| c == password_data.required);
+    let has_second = password_data.password.chars().nth(password_data.second_index - 1).map_or(false, |c| c == password_data.required);
+
+    return has_first ^ has_second;
 }
