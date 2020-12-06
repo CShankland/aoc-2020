@@ -1,89 +1,85 @@
 use std::fs;
 use std::str::Lines;
-
-pub struct SeatParser<'a>
+use bitvector::BitVector;
+pub struct CustomsDeclarationParser<'a>
 {
     lines: Lines<'a>
 }
 
-pub struct SeatData
+pub struct CustomsDeclaration
 {
-    row: i32,
-    column: i32
+    answers: BitVector
 }
 
-fn parse_to_seat(input: &String) -> SeatParser
+fn parse_to_declaration_group(input: &String) -> CustomsDeclarationParser { CustomsDeclarationParser{ lines: input.lines() } }
+
+fn count_yes_answers(declaration: &CustomsDeclaration) -> usize
 {
-    SeatParser{ lines: input.lines() }
+    declaration.answers.iter().map(|v| v.count_ones()).count()
 }
 
-fn compute_bit(letter: char) -> i32
+impl Iterator for CustomsDeclarationParser<'_>
 {
-    match letter
+    type Item = CustomsDeclaration;
+
+    fn next(&mut self) -> Option<CustomsDeclaration>
     {
-        'B' => 1,
-        'R' => 1,
-        _ => 0
+        let mut result = CustomsDeclaration{ answers: BitVector::ones(26) };
+        let mut tmp = CustomsDeclaration{ answers: BitVector::new(26) };
+        let mut found_entry = false;
+        while let Some(line_data) = self.lines.next()
+        {
+            if line_data.is_empty()
+            {
+                break;
+            }
+
+            found_entry = true;
+            for char in line_data.chars()
+            {
+                tmp.answers.insert(char as usize - 'a' as usize);
+            }
+
+            result.answers = result.answers.intersection(&tmp.answers);
+            tmp.answers.clear();
+        }
+
+        if found_entry
+        {
+            return Some(result);
+        }
+        else
+        {
+            return None;
+        }
     }
-}
-
-impl Iterator for SeatParser<'_>
-{
-    type Item = SeatData;
-
-    fn next(&mut self) -> Option<SeatData>
-    {
-        self.lines.next()
-            .map(|line| line.chars().fold(0, |acc, c| (acc << 1) + compute_bit(c)))
-            .map(|value| SeatData{ row: value >> 3, column: value & 0x7 })
-    }
-}
-
-fn compute_seat_id(data: &SeatData) -> i32
-{
-    data.row * 8 + data.column
 }
 
 const DATA_PATH: &str = "C:\\Development\\aoc-2020\\data";
 
 fn main() {
-    let input = fs::read_to_string(format!("{}\\{}", DATA_PATH, "day5.txt")).unwrap();
-    let mut seats: Vec<i32> = parse_to_seat(&input)
-        .map(|seat| compute_seat_id(&seat))
-        .collect();
-    seats.sort();
-    let mut seat_iter = seats.iter().peekable();
-    while let Some(seat) = seat_iter.next()
-    {
-        if let Some(next_seat) = seat_iter.peek()
-        {
-            if **next_seat == *seat + 2
-            {
-                println!("Available seat: {}", *seat + 1);
-            }
-        }
-    }
+    let input = fs::read_to_string(format!("{}\\{}", DATA_PATH, "day6.txt")).unwrap();
+    let entry_sum: usize = parse_to_declaration_group(&input)
+        .map(|declaration| count_yes_answers(&declaration))
+        .sum();
+    println!("Sum of entries: {}", entry_sum);
 }
 
 #[test]
 fn check_parser()
 {
-    let input = String::from("BFFFBBFRRR\nFFFBBBFRRR\nBBFFBBFRLL");
-    let seats: Vec<SeatData> = parse_to_seat(&input).collect();
-    assert_eq!(3, seats.len());
+    let input = String::from("abc\n\na\nb\nc\n\nab\nac\n");
+    let groups: Vec<CustomsDeclaration> = parse_to_declaration_group(&input).collect();
+    assert_eq!(groups.len(), 3);
 
-    let seat_1 = &seats[0];
-    assert_eq!(seat_1.row, 70);
-    assert_eq!(seat_1.column, 7);
-    assert_eq!(compute_seat_id(seat_1), 567);
+    let group_1 = &groups[0];
+    let mut b1 = BitVector::new(26);
+    for i in vec![0, 1, 2] { b1.insert(i); }
+    assert_eq!(b1, group_1.answers);
+    assert_eq!(count_yes_answers(&group_1), 3);
 
-    let seat_2 = &seats[1];
-    assert_eq!(seat_2.row, 14);
-    assert_eq!(seat_2.column, 7);
-    assert_eq!(compute_seat_id(seat_2), 119);
-
-    let seat_3 = &seats[2];
-    assert_eq!(seat_3.row, 102);
-    assert_eq!(seat_3.column, 4);
-    assert_eq!(compute_seat_id(seat_3), 820);
+    let group_2 = &groups[1];
+    let b2 = BitVector::new(26);
+    assert_eq!(b2, group_2.answers);
+    assert_eq!(count_yes_answers(&group_2), 0);
 }
