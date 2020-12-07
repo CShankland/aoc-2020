@@ -101,15 +101,19 @@ fn main() {
         }
     }
 
-    let mut containing_bags: HashSet<usize> = HashSet::new();
-    let mut search: Vec<usize> = rules_lookup["shiny gold"].contained_in.clone();
+    let mut bag_count: usize = 0;
+    let mut search: Vec<(usize, usize)> = vec![(rules_lookup["shiny gold"].rule, 1)];
     while let Some(next) = search.pop()
     {
-        containing_bags.insert(next);
-        rules_lookup[&rules[next].outer_bag].contained_in.iter().for_each(|item | search.push(*item));
+        rules[next.0].contents.iter()
+            .for_each(|item|
+                {
+                    bag_count += item.count * next.1;
+                    search.push((rules_lookup[&item.bag_type].rule, next.1 * item.count));
+                });
     }
 
-    println!("{} bags contain shiny gold", containing_bags.len());
+    println!("{} total bags are inside a single shiny gold bag", bag_count);
 }
 
 #[test]
