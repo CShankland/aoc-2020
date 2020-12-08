@@ -16,15 +16,24 @@ enum OpCode
     Jump,
 }
 
+#[derive(Debug)]
+#[derive(PartialEq)]
+enum RunMode
+{
+    Running,
+    InfiniteLoop,
+    Completed,
+}
+
 struct Instruction
 {
     operation: OpCode,
     value: i32
 }
 
-struct Program
+struct Program<'a>
 {
-    instructions: Vec<Instruction>,
+    instructions: &'a Vec<Instruction>,
     instruction_pointer: i32,
     accumulator: i32,
 }
@@ -68,12 +77,19 @@ fn parse_instruction(input: &str) -> Instruction
 
 fn parse_input(input: &String) -> AocParser { AocParser{ lines: input.lines() } }
 
-fn run_program(instructions: Vec<Instruction>, evaluation_callback: &mut dyn FnMut(&Program) -> bool) -> i32
+fn run_program(instructions: &Vec<Instruction>, evaluation_callback: &mut dyn FnMut(&Program) -> RunMode) -> (RunMode, i32)
 {
     let mut program = Program{ instructions, instruction_pointer: 0, accumulator: 0 };
+    let mut run_mode: RunMode;
 
-    while evaluation_callback(&program)
+    loop
     {
+        run_mode = evaluation_callback(&program);
+        if run_mode != RunMode::Running
+        {
+            break;
+        }
+
         let instruction: &Instruction = &program.instructions[program.instruction_pointer as usize];
         match instruction.operation
         {
@@ -91,30 +107,67 @@ fn run_program(instructions: Vec<Instruction>, evaluation_callback: &mut dyn FnM
         }
     }
 
-    return program.accumulator;
+    return (run_mode, program.accumulator);
 }
 
 const DATA_PATH: &str = "C:\\Development\\aoc-2020\\data";
 
+fn swap_instruction(instruction: &mut Instruction) -> bool
+{
+    match instruction.operation
+    {
+        OpCode::Jump =>
+            {
+                instruction.operation = OpCode::Noop;
+                true
+            },
+        OpCode::Noop =>
+            {
+                instruction.operation = OpCode::Jump;
+                true
+            },
+        _ => false
+    }
+}
+
 fn main() {
-    let instructions: Vec<Instruction> = fs::read_to_string(format!("{}\\{}", DATA_PATH, "day8.txt"))
+    let mut instructions: Vec<Instruction> = fs::read_to_string(format!("{}\\{}", DATA_PATH, "day8.txt"))
         .map(|input| parse_input(&input).collect())
         .unwrap();
 
     let mut evaluated_instructions: HashSet<i32> = HashSet::new();
     let mut prevent_loop = |program: &Program|
     {
+        if program.instruction_pointer == program.instructions.len() as i32
+        {
+            evaluated_instructions.clear();
+            return RunMode::Completed;
+        }
+
         if evaluated_instructions.contains(&program.instruction_pointer)
         {
-            return false;
+            evaluated_instructions.clear();
+            return RunMode::InfiniteLoop;
         }
 
         evaluated_instructions.insert(program.instruction_pointer);
-        return true;
+        return RunMode::Running;
     };
 
-    let result = run_program(instructions, &mut prevent_loop);
-    println!("Accumulator ended at {}", result);
+    for idx in 0..instructions.len()
+    {
+        if swap_instruction(&mut instructions[idx])
+        {
+            let (run_mode, result) = run_program(&instructions, &mut prevent_loop);
+            if run_mode == RunMode::Completed
+            {
+                println!("Accumulator ended at {}", result);
+                break;
+            }
+
+            swap_instruction(&mut instructions[idx]);
+        }
+    }
 }
 
 #[test]
