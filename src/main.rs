@@ -1,42 +1,5 @@
-#[macro_use]
-extern crate lazy_static;
-
 use std::fs;
-use regex::Regex;
 use std::str::Lines;
-use std::collections::HashSet;
-
-#[derive(Debug)]
-#[derive(PartialEq)]
-enum OpCode
-{
-    Unknown,
-    Noop,
-    Accumulate,
-    Jump,
-}
-
-#[derive(Debug)]
-#[derive(PartialEq)]
-enum RunMode
-{
-    Running,
-    InfiniteLoop,
-    Completed,
-}
-
-struct Instruction
-{
-    operation: OpCode,
-    value: i32
-}
-
-struct Program<'a>
-{
-    instructions: &'a Vec<Instruction>,
-    instruction_pointer: i32,
-    accumulator: i32,
-}
 
 struct AocParser<'a>
 {
@@ -45,164 +8,51 @@ struct AocParser<'a>
 
 impl Iterator for AocParser<'_>
 {
-    type Item = Instruction;
+    type Item = i32;
 
-    fn next(&mut self) -> Option<Instruction>
+    fn next(&mut self) -> Option<i32>
     {
         self.lines.next()
             .map(|line| line.trim())
-            .map(parse_instruction)
+            .map(|str| str.parse::<i32>().unwrap())
     }
-}
-
-fn parse_instruction(input: &str) -> Instruction
-{
-    lazy_static!
-    {
-        static ref RE: Regex = Regex::new(r"(\w+) ([+-]\d+)").unwrap();
-    }
-
-    let captures = RE.captures(input).unwrap();
-    let operation = match captures.get(1).unwrap().as_str()
-    {
-        "nop" => OpCode::Noop,
-        "acc" => OpCode::Accumulate,
-        "jmp" => OpCode::Jump,
-        _ => OpCode::Unknown
-    };
-    let value = captures.get(2).unwrap().as_str().parse::<i32>().unwrap();
-
-    return Instruction{ operation, value };
 }
 
 fn parse_input(input: &String) -> AocParser { AocParser{ lines: input.lines() } }
 
-fn run_program(instructions: &Vec<Instruction>, evaluation_callback: &mut dyn FnMut(&Program) -> RunMode) -> (RunMode, i32)
+fn is_sum(target: i32, window: &Vec<i32>) -> bool
 {
-    let mut program = Program{ instructions, instruction_pointer: 0, accumulator: 0 };
-    let mut run_mode: RunMode;
-
-    loop
+    for val in window.iter()
     {
-        run_mode = evaluation_callback(&program);
-        if run_mode != RunMode::Running
+        if window.contains(&(target - val))
         {
-            break;
-        }
-
-        let instruction: &Instruction = &program.instructions[program.instruction_pointer as usize];
-        match instruction.operation
-        {
-            OpCode::Noop => program.instruction_pointer += 1,
-            OpCode::Accumulate =>
-                {
-                    program.accumulator += instruction.value;
-                    program.instruction_pointer += 1;
-                },
-            OpCode::Jump =>
-                {
-                    program.instruction_pointer += instruction.value;
-                },
-            _ => panic!("Unknown instruction")
+            return true;
         }
     }
 
-    return (run_mode, program.accumulator);
+    return false;
 }
 
 const DATA_PATH: &str = "C:\\Development\\aoc-2020\\data";
 
-fn swap_instruction(instruction: &mut Instruction) -> bool
-{
-    match instruction.operation
-    {
-        OpCode::Jump =>
-            {
-                instruction.operation = OpCode::Noop;
-                true
-            },
-        OpCode::Noop =>
-            {
-                instruction.operation = OpCode::Jump;
-                true
-            },
-        _ => false
-    }
-}
-
 fn main() {
-    let mut instructions: Vec<Instruction> = fs::read_to_string(format!("{}\\{}", DATA_PATH, "day8.txt"))
-        .map(|input| parse_input(&input).collect())
-        .unwrap();
+    let input = fs::read_to_string(format!("{}\\{}", DATA_PATH, "day9.txt")).unwrap();
+    let mut input_stream = parse_input(&input);
 
-    let mut evaluated_instructions: HashSet<i32> = HashSet::new();
-    let mut prevent_loop = |program: &Program|
+    let mut window = Vec::new();
+    input_stream.by_ref().take(25).for_each(|val| window.push(val));
+
+    while let Some(val) = input_stream.next()
     {
-        if program.instruction_pointer == program.instructions.len() as i32
+        if !is_sum(val, &window)
         {
-            evaluated_instructions.clear();
-            return RunMode::Completed;
+            println!("Found {}", val);
+            return;
         }
 
-        if evaluated_instructions.contains(&program.instruction_pointer)
-        {
-            evaluated_instructions.clear();
-            return RunMode::InfiniteLoop;
-        }
-
-        evaluated_instructions.insert(program.instruction_pointer);
-        return RunMode::Running;
-    };
-
-    for idx in 0..instructions.len()
-    {
-        if swap_instruction(&mut instructions[idx])
-        {
-            let (run_mode, result) = run_program(&instructions, &mut prevent_loop);
-            if run_mode == RunMode::Completed
-            {
-                println!("Accumulator ended at {}", result);
-                break;
-            }
-
-            swap_instruction(&mut instructions[idx]);
-        }
+        window.remove(0);
+        window.push(val);
     }
-}
 
-#[test]
-fn check_parser()
-{
-    let input = String::from(r#"nop +0
-        acc +1
-        jmp +4
-        acc +3
-        jmp -3
-        acc -99
-        acc +1
-        jmp -4
-        acc +6"#);
-
-    let instructions: Vec<Instruction> = parse_input(&input).collect();
-    assert_eq!(instructions.len(), 9);
-
-    let item_0 = &instructions[0];
-    assert_eq!(item_0.operation, OpCode::Noop);
-    assert_eq!(item_0.value, 0);
-
-    let item_1 = &instructions[1];
-    assert_eq!(item_1.operation, OpCode::Accumulate);
-    assert_eq!(item_1.value, 1);
-
-    let item_2 = &instructions[2];
-    assert_eq!(item_2.operation, OpCode::Jump);
-    assert_eq!(item_2.value, 4);
-
-    let item_3 = &instructions[3];
-    assert_eq!(item_3.operation, OpCode::Accumulate);
-    assert_eq!(item_3.value, 3);
-
-    let item_4 = &instructions[4];
-    assert_eq!(item_4.operation, OpCode::Jump);
-    assert_eq!(item_4.value, -3);
+    println!("Found nothing.");
 }
